@@ -22,121 +22,131 @@
 #ifndef __PTHREAD_DEFS_H__
 #define __PTHREAD_DEFS_H__
 
+// non-linux definitions... fill this in?
+#ifndef __linux__
+  #error "Non-Linux pthread definitions not available"
+#endif //!__linux__
 
-/*typedef struct {
-    volatile int value;
-    long _padding[15]; // to prevent false sharing
-} tree_barrier_t;*/
+#ifndef __GNUC__
+#error "This library requires gcc 4.0+ (3.x should work, but you'll need to change pthread_defs.h)"
+#elif __GNUC__ < 4
+#error "This library requires gcc 4.0+ (3.x should work, but you'll need to change pthread_defs.h)"
+#endif
 
-// old LinuxThreads needs different magic than newer NPTL implementation
-// definitions for LinuxThreads
-#ifdef __linux__
+#ifndef  __SIZEOF_PTHREAD_MUTEX_T
+#error "This library requires __SIZEOF_PTHREAD_MUTEX_T"
+#endif
 
-//XOPEN2K and UNIX98 defines to avoid for rwlocks/barriers when compiling with gcc...
-//see <bits/pthreadtypes.h>
-#if !defined(__USE_UNIX98) && !defined(__USE_XOPEN2K) && !defined(__SIZEOF_PTHREAD_MUTEX_T)
 /* Read-write locks.  */
-typedef struct _pthread_rwlock_t
-{
-  struct _pthread_fastlock __rw_lock; /* Lock to guarantee mutual exclusion */
-  int __rw_readers;                   /* Number of readers */
-  _pthread_descr __rw_writer;         /* Identity of writer, or NULL if none */
-  _pthread_descr __rw_read_waiting;   /* Threads waiting for reading */
-  _pthread_descr __rw_write_waiting;  /* Threads waiting for writing */
-  int __rw_kind;                      /* Reader/Writer preference selection */
-  int __rw_pshared;                   /* Shared between processes or not */
-} pthread_rwlock_t;
+typedef union {
+  struct
+  {
+    int __lock;
+    unsigned int __nr_readers;
+    unsigned int __readers_wakeup;
+    unsigned int __writer_wakeup;
+    unsigned int __nr_readers_queued;
+    unsigned int __nr_writers_queued;
+# ifdef __x86_64__
+# define __PTHREAD_RWLOCK_INT_FLAGS_SHARED	1
+    int __writer;
+    int __shared;
+    signed char __rwelision;
+# ifndef  __ILP32__
+    unsigned char __pad[4];
+#    ifndef __PTHREAD_RWLOCK_ELISION_EXTRA
+#      define __PTHREAD_RWLOCK_ELISION_EXTRA 0, { 0, 0, 0, 0 }, { 0, 0, 0 }
+#    endif
+#  else
+#    ifndef __PTHREAD_RWLOCK_ELISION_EXTRA
+#      define __PTHREAD_RWLOCK_ELISION_EXTRA 0, { 0, 0, 0 }
+#    endif
+#  endif
+    unsigned char __pad1[3];
+    unsigned long int __pad2;
+    unsigned int __flags;
+# else
+    unsigned char __flags;
+    unsigned char __shared;
+    signed char __rwelision;
+# define __PTHREAD_RWLOCK_ELISION_EXTRA 0
+    unsigned char __pad2;
+    int __writer;
+# endif
+  } __data;
+  char __size[__SIZEOF_PTHREAD_RWLOCK_T];
+  long int __align;
+} m5_rwlock_t;
 
+_Static_assert(sizeof(m5_rwlock_t) == __SIZEOF_PTHREAD_RWLOCK_T, "Incompatible rwlock struct sizes");
+
+typedef union
+{
+  struct
+  {
+    int __lock;
+    unsigned int __futex;
+    __extension__ unsigned long long int __total_seq;
+    __extension__ unsigned long long int __wakeup_seq;
+    __extension__ unsigned long long int __woken_seq;
+    void *__mutex;
+    unsigned int __nwaiters;
+    unsigned int __broadcast_seq;
+  } __data;
+  char __size[__SIZEOF_PTHREAD_COND_T];
+  __extension__ long long int __align;
+} m5_cond_t;
+
+_Static_assert(sizeof(m5_cond_t) == __SIZEOF_PTHREAD_COND_T, "Incompatible cond struct sizes");
 
 /* Attribute for read-write locks.  */
 typedef struct
 {
   int __lockkind;
   int __pshared;
-} pthread_rwlockattr_t;
-#endif
-#if !defined(__USE_XOPEN2K) && !defined(__SIZEOF_PTHREAD_MUTEX_T)
+} m5_rwlockattr_t;
+
 /* POSIX spinlock data type.  */
-typedef volatile int pthread_spinlock_t;
+typedef volatile int m5_spinlock_t;
 
 /* POSIX barrier. */
-typedef struct {
-  struct _pthread_fastlock __ba_lock; /* Lock to guarantee mutual exclusion */
-  int __ba_required;                  /* Threads needed for completion */
-  int __ba_present;                   /* Threads waiting */
-  _pthread_descr __ba_waiting;        /* Queue of waiting threads */
-} pthread_barrier_t;
+typedef union
+{
+  char __size[__SIZEOF_PTHREAD_BARRIER_T];
+  long int __align;
+  m5_spinlock_t __arr[__SIZEOF_PTHREAD_BARRIER_T / sizeof(m5_spinlock_t)];
+} m5_barrier_t;
+
+_Static_assert(sizeof(m5_barrier_t) == __SIZEOF_PTHREAD_BARRIER_T, "Incompatible barrier struct sizes");
 
 /* barrier attribute */
 typedef struct {
   int __pshared;
-} pthread_barrierattr_t;
-
-#endif
+} m5_barrierattr_t;
 
 
-#ifndef  __SIZEOF_PTHREAD_MUTEX_T
-#define PTHREAD_MUTEX_T_COUNT __m_count
-
-#define PTHREAD_COND_T_FLAG(cond) (*(volatile int*)(&(cond->__c_lock.__status)))
-#define PTHREAD_COND_T_THREAD_COUNT(cond) (*(volatile int*)(&(cond-> __c_waiting)))
-#define PTHREAD_COND_T_COUNT_LOCK(cond) (*(volatile int*)(&(cond->__c_lock.__spinlock)))
-
-#define PTHREAD_RWLOCK_T_LOCK(rwlock)  (*(volatile int*)(&rwlock->__rw_lock))
-#define PTHREAD_RWLOCK_T_READERS(rwlock)  (*(volatile int*)(&rwlock->__rw_readers))
-#define PTHREAD_RWLOCK_T_WRITER(rwlock)  (*(volatile pthread_t*)(&rwlock->__rw_kind))
-
-//For tree barriers
-//#define PTHREAD_BARRIER_T_NUM_THREADS(barrier)  (*(int*)(&barrier->__ba_lock.__spinlock))
-//#define PTHREAD_BARRIER_T_BARRIER_PTR(barrier) (*(tree_barrier_t**)(&barrier->__ba_required))
-
-#define PTHREAD_BARRIER_T_SPINLOCK(barrier)  (*(volatile int*)(&barrier->__ba_lock.__spinlock))
-#define PTHREAD_BARRIER_T_NUM_THREADS(barrier) (*((volatile int*)(&barrier->__ba_required)))
-#define PTHREAD_BARRIER_T_COUNTER(barrier) (*((volatile int*)(&barrier->__ba_present)))
-#define PTHREAD_BARRIER_T_DIRECTION(barrier) (*((volatile int*)(&barrier->__ba_waiting)))
-
-// definitions for NPTL implementation
-#else /* __SIZEOF_PTHREAD_MUTEX_T defined */
 #define PTHREAD_MUTEX_T_COUNT __data.__count
 
-#define PTHREAD_RWLOCK_T_LOCK(rwlock)  (*(volatile int*)(&rwlock->__data.__lock))
-#define PTHREAD_RWLOCK_T_READERS(rwlock)  (*(volatile int*)(&rwlock->__data.__nr_readers))
-#define PTHREAD_RWLOCK_T_WRITER(rwlock)  (*(volatile int*)(&rwlock->__data.__writer))
+#define M5_SPINLOCK_T(integer)  (*(m5_spinlock_t*)&(integer))
 
-#if defined(__GNUC__) && __GNUC__ >= 4
-#define PTHREAD_COND_T_FLAG(cond) (*(volatile int*)(&(cond->__data.__lock)))
-#define PTHREAD_COND_T_THREAD_COUNT(cond) (*(volatile int*)(&(cond-> __data.__futex)))
-#define PTHREAD_COND_T_COUNT_LOCK(cond) (*(volatile int*)(&(cond->__data.__nwaiters)))
+#define M5_LOCK(rwlock) ((m5_rwlock_t*)rwlock)
+#define PTHREAD_RWLOCK_T_LOCK(rwlock)  M5_SPINLOCK_T(M5_LOCK(rwlock)->__data.__lock)
+#define PTHREAD_RWLOCK_T_READERS(rwlock)  M5_SPINLOCK_T(M5_LOCK(rwlock)->__data.__nr_readers)
+#define PTHREAD_RWLOCK_T_WRITER(rwlock)  M5_SPINLOCK_T(M5_LOCK(rwlock)->__data.__writer)
+
+#define M5_COND(cond) ((m5_cond_t*)cond)
+#define PTHREAD_COND_T_FLAG(cond) M5_SPINLOCK_T(M5_COND(cond)->__data.__lock)
+#define PTHREAD_COND_T_THREAD_COUNT(cond) M5_SPINLOCK_T(M5_COND(cond)-> __data.__futex)
+#define PTHREAD_COND_T_COUNT_LOCK(cond) M5_SPINLOCK_T(M5_COND(cond)->__data.__nwaiters)
 
 //For tree barriers
 //#define PTHREAD_BARRIER_T_NUM_THREADS(barrier)  (*((int*)(barrier->__size+(0*sizeof(int)))))
 //#define PTHREAD_BARRIER_T_BARRIER_PTR(barrier) (*(tree_barrier_t**)(barrier->__size+(1*sizeof(int))))
 
-#define PTHREAD_BARRIER_T_SPINLOCK(barrier) (*((volatile int*)(barrier->__size+(0*sizeof(int)))))
-#define PTHREAD_BARRIER_T_NUM_THREADS(barrier) (*((volatile int*)(barrier->__size+(1*sizeof(int)))))
-#define PTHREAD_BARRIER_T_COUNTER(barrier) (*((volatile int*)(barrier->__size+(2*sizeof(int)))))
-#define PTHREAD_BARRIER_T_DIRECTION(barrier) (*((volatile int*)(barrier->__size+(3*sizeof(int)))))
-
-//Tree barrier-related
-#if 0
-#ifndef __SIZEOF_PTHREAD_BARRIER_T
-#error __SIZEOF_PTHREAD_BARRIER_T not defined
-#endif
-#if ((4/*fields*/*4/*sizeof(int32)*/) > __SIZEOF_PTHREAD_BARRIER_T)
-#error barrier size __SIZEOF_PTHREAD_BARRIER_T not large enough for our implementation
-#endif
-#endif
-
-#else // gnuc >= 4
-//gnuc < 4
-#error "This library requires gcc 4.0+ (3.x should work, but you'll need to change pthread_defs.h)"
-#endif // gnuc >= 4
-
-#endif // LinuxThreads / NPTL
-
-// non-linux definitions... fill this in?
-#else // !__linux__
-  #error "Non-Linux pthread definitions not available"
-#endif //!__linux__
+#define M5_BARRIER(barrier) ((m5_barrier_t*)barrier)
+#define PTHREAD_BARRIER_T_SPINLOCK(barrier) (M5_BARRIER(barrier)->__arr[0])
+#define PTHREAD_BARRIER_T_NUM_THREADS(barrier) (M5_BARRIER(barrier)->__arr[1])
+#define PTHREAD_BARRIER_T_COUNTER(barrier) (M5_BARRIER(barrier)->__arr[2])
+#define PTHREAD_BARRIER_T_DIRECTION(barrier) (M5_BARRIER(barrier)->__arr[3])
 
 #endif //  __PTHREAD_DEFS_H__
