@@ -19,6 +19,7 @@
     Author: Daniel Sanchez
 */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <assert.h>
 #include <pthread.h>
@@ -787,17 +788,17 @@ int pthread_getaffinity_np(pthread_t thread, size_t size, cpu_set_t *set) {
   return 0;
 }
 
-int pthread_setaffinity_np(pthread_t thread, size_t size, cpu_set_t *set) {
+int pthread_setaffinity_np(pthread_t thread, size_t size, const cpu_set_t *set) {
   DEBUG("%s: start\n", __FUNCTION__);
   return 0;
 }
 
-int pthread_attr_setaffinity_np(pthread_attr_t attr, size_t cpusetsize, const cpu_set_t *cpuset) {
+int pthread_attr_setaffinity_np(pthread_attr_t *attr, size_t cpusetsize, const cpu_set_t *cpuset) {
   DEBUG("%s: start\n", __FUNCTION__);
   return 0;
 }
 
-int pthread_attr_getaffinity_np(pthread_attr_t attr, size_t cpusetsize, cpu_set_t *cpuset) {
+int pthread_attr_getaffinity_np(const pthread_attr_t *attr, size_t cpusetsize, cpu_set_t *cpuset) {
   DEBUG("%s: start\n", __FUNCTION__);
   return 0;
 }
