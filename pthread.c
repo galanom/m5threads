@@ -220,7 +220,7 @@ static int __pthread_trampoline(void* thr_ctrl) {
   pthread_tcb_t* tcb = (pthread_tcb_t*) thr_ctrl; 
   setup_thread_tls(tcb->tls_start_addr);
   __tcb = tcb;
-  DEBUG("Child in trampoline, TID=%llx\n", tcb->tid);
+  DEBUG("Child in trampoline, TID=%lx\n", tcb->tid);
 
   void* result = tcb->start_routine(tcb->arg);
   pthread_exit(result);
@@ -238,7 +238,7 @@ int pthread_create (pthread_t* thread,
   void* thread_block;
   size_t thread_block_size = thread_block_info.total_size;
   thread_block = mmap(0, thread_block_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-  DEBUG("pthread_create: mmapped child thread block 0x%llx -- 0x%llx\n", thread_block, ((char*)thread_block) + CHILD_STACK_SIZE) ;
+  DEBUG("pthread_create: mmapped child thread block 0x%p -- 0x%p\n", thread_block, ((char*)thread_block) + CHILD_STACK_SIZE) ;
  
   //Populate the thread control block
   pthread_tcb_t* tcb = (pthread_tcb_t*) thread_block;
@@ -305,7 +305,7 @@ void pthread_exit (void* status) {
     //Main thread
     if (__tcb == NULL) _exit(0);
 
-    DEBUG("Child TID=0x%llx in pthread_exit...\n", pthread_self() );
+    DEBUG("Child TID=0x%lx in pthread_exit...\n", pthread_self() );
     __tcb->result = status;
     //TODO mem barrier here...
     __tcb->child_finished = 1;
@@ -517,7 +517,7 @@ int pthread_setspecific (pthread_key_t key, const void* value) {
   if (key < 0 || key >= PTHREAD_KEYS_MAX) return EINVAL; 
   if (pthread_specifics_size == 0) {
      pthread_specifics = (void**) calloc(PTHREAD_KEYS_MAX + 1, sizeof(void*));
-     DEBUG("pthread_setspecific: malloc of size %d bytes, got 0x%llx\n", m_size, pthread_specifics);
+     DEBUG("pthread_setspecific: malloc of size %d bytes, got 0x%p\n", m_size, pthread_specifics);
      pthread_specifics_size = key+1;
   }
   pthread_specifics[key] = (void*) value;
