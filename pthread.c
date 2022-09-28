@@ -220,7 +220,7 @@ static int __pthread_trampoline(void* thr_ctrl) {
   pthread_tcb_t* tcb = (pthread_tcb_t*) thr_ctrl; 
   setup_thread_tls(tcb->tls_start_addr);
   __tcb = tcb;
-  DEBUG("Child in trampoline, TID=%lx\n", tcb->tid);
+  DEBUG("Child in trampoline, TID=%p\n", (void *)tcb->tid);
 
   void* result = tcb->start_routine(tcb->arg);
   pthread_exit(result);
@@ -305,7 +305,7 @@ void pthread_exit (void* status) {
     //Main thread
     if (__tcb == NULL) _exit(0);
 
-    DEBUG("Child TID=0x%lx in pthread_exit...\n", pthread_self() );
+    DEBUG("Child TID=0x%p in pthread_exit...\n", (void *)pthread_self() );
     __tcb->result = status;
     //TODO mem barrier here...
     __tcb->child_finished = 1;
