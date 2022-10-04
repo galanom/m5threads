@@ -216,6 +216,18 @@ typedef struct
 # define TLS_INIT_TP(descr, secondcall) \
     INTERNAL_SYSCALL_ARM(set_tls, 0, 1, (descr))
 
+#elif defined (__riscv)
+
+typedef struct
+{
+  void *dtv;
+  void *private;
+} tcbhead_t;
+
+register void *__thread_self asm("tp");
+
+# define TLS_INIT_TP(descr, secondcall) \
+	(__thread_self = (__typeof (__thread_self)) (descr), NULL)
 #else
   #error "No TLS defs for your architecture"
 #endif

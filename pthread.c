@@ -43,6 +43,8 @@
   #include "spinlock_sparc.h"
 #elif defined (__arm__)
   #include "spinlock_arm.h"
+#elif defined (__riscv)
+  #include "spinlock_riscv.h"
 #else
   #error "spinlock routines not available for your arch!\n"
 #endif
