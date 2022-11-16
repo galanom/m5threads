@@ -186,7 +186,8 @@ static void setup_thread_tls(void* th_block_addr) {
   #error "TLS_TCB_AT_TP xor TLS_DTV_AT_TP must be defined"
   #endif
 
-  //DEBUG("Init TLS: Copying %d bytes from 0x%llx to 0x%llx\n", filesz, (uint64_t) initimage, (uint64_t) tls_start_ptr);
+  //DEBUG("Init TLS: Copying %ld bytes from %p to %p\n",
+  //  thread_block_info.tls_filesz, thread_block_info.tls_initimage, tls_start_ptr);
   memcpy (tls_start_ptr, thread_block_info.tls_initimage, thread_block_info.tls_filesz);
 
   //Rest of tls vars are already cleared (mmap returns zeroed memory)
@@ -240,7 +241,7 @@ int pthread_create (pthread_t* thread,
   void* thread_block;
   size_t thread_block_size = thread_block_info.total_size;
   thread_block = mmap(0, thread_block_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-  DEBUG("pthread_create: mmapped child thread block 0x%p -- 0x%p\n", thread_block, ((char*)thread_block) + CHILD_STACK_SIZE) ;
+  DEBUG("pthread_create: mmapped child thread block %p -- %p\n", thread_block, ((char*)thread_block) + CHILD_STACK_SIZE) ;
  
   //Populate the thread control block
   pthread_tcb_t* tcb = (pthread_tcb_t*) thread_block;
