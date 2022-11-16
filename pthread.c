@@ -267,15 +267,22 @@ int pthread_create (pthread_t* thread,
   DEBUG("pthread_create: prior to clone()\n");
   #if defined(__riscv)
   /* Apparently, RISCV threads need a different clone() syscall.
-     The original one would return EINVAL. This one tries to mimic
-     what glibc-2.36 does, except for the parent_tid which is set to NULL.
-     If we do not this, threads cannot be joined. This could be related to
-     the fact that we do not use setup_thread_tls() for main thread.
-  */
+   * The original one would return EINVAL. This one tries to mimic
+   * what glibc-2.36 does, except that:
+   * a) The parent_tid is set to NULL (see below).
+   * b) CLONE_CHILD_CLEARTID is not set, as pthread_join() checks the TID
+   */
   int ret = clone(__pthread_trampoline, tcb->stack_start_addr,
     CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
-    CLONE_SYSVSEM | CLONE_SETTLS | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID,
+    CLONE_SYSVSEM | CLONE_SETTLS | CLONE_PARENT_SETTID,
     tcb, NULL, tcb->tls_start_addr, &tcb->tid);
+  /*
+   * !! FIXME !!
+   * For some reason, if parent_tid is set to &tcb->tid (as glibc does),
+   * the first assertion of pthread_join() will fail,
+   * with child_tcb->tid pointing to single-byte spaced addresses.
+   * Code would still work however, just comment-out the assert().
+   */
   #else
   int ret = clone(__pthread_trampoline, tcb->stack_start_addr, CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD, tcb);
   #endif
