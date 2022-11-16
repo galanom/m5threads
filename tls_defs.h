@@ -34,9 +34,9 @@
 #define __ELF_NATIVE_CLASS 32
 #endif
 
-//Seems like all non-ARM M5 targets use TLS_TCB_AT_TP (defined in
-//  platform-specific 'tls.h')
-#if defined(__arm__)
+//Seems like all targets but ARM and RISCV use TLS_TCB_AT_TP
+// (defined in platform-specific 'tls.h')
+#if defined(__arm__) || defined(__riscv)
 #define TLS_DTV_AT_TP 1
 #else
 #define TLS_TCB_AT_TP 1

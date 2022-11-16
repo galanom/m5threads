@@ -156,6 +156,14 @@ static void populate_thread_block_info() {
 //Set up TLS block in current thread
 // @param th_block_addr:  beginning of entire thread memory space
 static void setup_thread_tls(void* th_block_addr) {
+  // glibc does not modify thread pointer (tp/x4) register for main thread.
+  // While doing so appears to work for x86_64, it causes problems on RISCV.
+  // Not doing so appears to work for both x86_64 and RISCV,
+  // however let's not touch something that is known to work well.
+  #if defined (__riscv)
+  if (__tcb == NULL)
+    return;
+  #endif
   size_t tcb_offset = 0;
   void *tlsblock = NULL;
   char *tls_start_ptr = NULL;
@@ -257,7 +265,23 @@ int pthread_create (pthread_t* thread,
 
   //Call clone()
   DEBUG("pthread_create: prior to clone()\n");
-  clone(__pthread_trampoline, tcb->stack_start_addr, CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD, tcb);
+  #if defined(__riscv)
+  /* Apparently, RISCV threads need a different clone() syscall.
+     The original one would return EINVAL. This one tries to mimic
+     what glibc-2.36 does, except for the parent_tid which is set to NULL.
+     If we do not this, threads cannot be joined. This could be related to
+     the fact that we do not use setup_thread_tls() for main thread.
+  */
+  int ret = clone(__pthread_trampoline, tcb->stack_start_addr,
+    CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
+    CLONE_SYSVSEM | CLONE_SETTLS | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID,
+    tcb, NULL, tcb->tls_start_addr, &tcb->tid);
+  #else
+  int ret = clone(__pthread_trampoline, tcb->stack_start_addr, CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD, tcb);
+  #endif
+  if (ret < 0) {
+    fprintf(stderr, "pthread_create(): clone() failed with errno=%d\n", errno);
+  }
   DEBUG("pthread_create: after clone()\n");
   return 0;
 }
